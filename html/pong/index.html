@@ -1,0 +1,380 @@
+<html>
+
+<head>
+    <title>Lucid Led - Pong controller</title>
+    <script type="text/javascript" src="jquery.min.js"></script>
+    <script type="text/javascript" src="oocsi-web.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://kit.fontawesome.com/9c812afbf8.js" crossorigin="anonymous"></script>
+
+    <meta name="viewport" content="width=device-width, user-scalable=no" />
+
+    <style type="text/css">
+        * {
+            font-family: 'Roboto', sans-serif;
+            -webkit-user-select: none;
+            /* Safari */
+            -moz-user-select: none;
+            /* Firefox */
+            -ms-user-select: none;
+            /* IE10+/Edge */
+            user-select: none;
+            /* Standard */
+        }
+
+        body {
+            min-height: 100vh;
+            /* mobile viewport bug fix */
+            min-height: -webkit-fill-available;
+        }
+
+        html {
+            height: -webkit-fill-available;
+        }
+
+        .hide {
+            display: none !important;
+        }
+
+        .player{
+            margin-top: 20px;
+            width: 100%;
+            text-align: center;
+        }
+        
+        #controller {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            text-align: center;
+            justify-content: center;
+        }
+
+        
+        #controller .player {
+            flex-grow: 1;
+        }
+
+        .button {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            padding: 20px 40px;
+            font-weight: 700;
+            margin-left: 2rem;
+            margin-right: 2rem;
+            border: 2px solid #c6ccdf;
+            border-radius: 15px;
+            margin-bottom: 2rem;
+            box-shadow: 0 6px #acadb3;
+            background-color: #d5d7dd;
+            text-align: center;
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 30%;
+            color: rgb(43, 48, 61);
+
+        }
+
+        .button:active {
+            box-shadow: none;
+            top: 6px;
+        }
+
+        #up.button {
+            color: #aab0be;
+
+            font-size: 100px;
+
+            flex-grow: 4;
+        }
+
+        #down.button {
+            color: #aab0be;
+
+            font-size: 100px;
+            flex-grow: 4;
+
+        }
+
+        .button div p {
+            position: absolute;
+            top: 50%;
+            /* position the top  edge of the element at the middle of the parent */
+            left: 50%;
+            /* position the left edge of the element at the middle of the parent */
+
+            transform: translate(-50%, 100px);
+        }
+
+        #ready{
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            text-align: center;
+            justify-content: center;
+        }
+
+        #waiting {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            text-align: center;
+            justify-content: center;   
+        }
+
+        .main-icon{
+            color: #596275;
+            font-size: 150px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="controller" class="hide">
+        <h1 class="player"></h1>
+        <div class="button" id="up">
+            <div>
+                <i class="fa-solid fa-circle-chevron-up"></i>
+            </div>
+        </div>
+        <div class=" button" id="down">
+                <div>            
+                    <i class="fa-solid fa-circle-chevron-down"></i>
+                </div>
+        </div>
+    </div>
+
+    <div id="waiting" class="hide">
+        <i class="fa-solid fa-hourglass-half main-icon"></i>
+        <h3 class="player"></h3>
+        <h2>There is currently no spot to play, please wait</h2>
+        <p>This screen will automatically update once there is a spot</p>
+
+    </div>
+
+    <div id="ready" class="hide">
+            <i class="fa-solid fa-gamepad main-icon"></i>
+            <h3 class="player"></h3>
+            <h2>Ready? There is a spot to play!</h2>
+            <div class="button" id="joingame">Join game</div>
+    </div>
+</body>
+
+<script>
+    var getUrlParameter = function getUrlParameter(sParam) {
+        var sPageURL = window.location.search.substring(1),
+            sURLVariables = sPageURL.split('&'),
+            sParameterName,
+            i;
+
+        for (i = 0; i < sURLVariables.length; i++) {
+            sParameterName = sURLVariables[i].split('=');
+
+            if (sParameterName[0] === sParam) {
+                return sParameterName[1] === undefined ? true : decodeURIComponent(sParameterName[1]);
+            }
+        }
+        return false;
+    };
+
+    function guid() {
+        function s4() {
+            return Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
+        }
+        return s4() + s4() + '-' + s4() + '-' + s4() + '-' + s4() + '-' + s4() + s4() + s4();
+    }
+
+    function connectOOCSI(){
+        OOCSI.connect("wss://" + "oocsi.id.tue.nl" + "/ws" ); 
+    }
+
+    function updateScreens(){
+        let controller, waiting, ready;
+        controller = $('#controller')
+        waiting = $('#waiting')
+        ready = $('#ready')
+        
+        if (liveUUID.length == 0){
+            controller.addClass("hide")
+            waiting.addClass("hide")
+            ready.removeClass("hide")
+        } else if (liveUUID != playerUUID) {
+            controller.addClass("hide")
+            waiting.removeClass("hide")
+            ready.addClass("hide")
+        } else if (liveUUID == playerUUID){
+            controller.removeClass("hide")
+            waiting.addClass("hide")
+            ready.addClass("hide")
+        }
+    }
+
+    var player = -1
+    var playerUUID = ""
+    var liveUUID = ""
+    var buttonDown            
+    var buttonUp
+
+    var intervalId;
+
+    let lastUpdateTime = Date.now();
+
+    $(document).ready(function () {
+        $('#controller').addClass("hide")
+        $('#ready').addClass("hide")
+        $('#waiting').addClass("hide")
+
+        connectOOCSI();
+
+        player=parseInt(getUrlParameter("p"));
+        console.log(player)
+        if (isNaN(player)) return;
+
+        $(".player").text(`Player ${player + 1}`)
+        //$("#player2").text(`Player ${player + 1}`)
+
+        if (!localStorage.uuid) { 
+            console.log("Set UUID in HTMLStorage")
+            playerUUID=guid();         
+            localStorage.setItem("uuid", playerUUID);
+        } 
+        else { 
+            console.log("Retrieve UUID from HTMLStorage")
+            playerUUID = localStorage.getItem("uuid"); 
+        }
+
+        console.log("Player:",  `P${(player + 1)}`, " | UUID: ", playerUUID)
+
+        buttonDown=document.querySelector("#down") 
+        buttonUp=document.querySelector("#up")
+
+        intervalId = setInterval(getLiveUUID, 250);
+
+        $('#up').on('mousedown touchstart', function(e) {
+            if (!UUIDUpdated()) return;
+
+            console.log("UP", "pressed")
+            $(this).addClass('active');
+            if (!OOCSI.isConnected()) connectOOCSI()
+            OOCSI.send("0e3be763-a287-4192-ae5e-52c3608f2a09", {player: player, button: 0, state: 1});
+        }).bind('mouseup mouseleave touchend touchcancel', function() {
+            if (!UUIDUpdated()) return;
+
+            console.log("UP", "unpressed")
+            $(this).removeClass('active');
+            if (!OOCSI.isConnected()) connectOOCSI()
+            OOCSI.send("0e3be763-a287-4192-ae5e-52c3608f2a09", {player: player, button: 0, state: 0});
+        });
+
+        $('#down').on('mousedown touchstart', function(e) {
+            if (!UUIDUpdated()) return;
+
+            console.log("DOWN", "pressed")
+            $(this).addClass('active');
+            if (!OOCSI.isConnected()) connectOOCSI()
+            OOCSI.send("0e3be763-a287-4192-ae5e-52c3608f2a09", {player: player, button: 1, state: 1});
+        }).bind('mouseup mouseleave touchend touchcancel', function() {
+            if (!UUIDUpdated()) return;
+
+            console.log("DOWN", "unpressed")
+            $(this).removeClass('active');
+            if (!OOCSI.isConnected()) connectOOCSI()
+            OOCSI.send("0e3be763-a287-4192-ae5e-52c3608f2a09", {player: player, button: 1, state: 0});
+        });
+
+        OOCSI.subscribe("0e3be763-a287-4192-ae5e-52c3608f2a09", function(msg) {
+            if (msg.data[`uuid${player}`] === undefined) return;
+            console.log("Live UUID: ", msg.data[`uuid${0}`], msg.data[`uuid${1}`])
+
+            liveUUID = msg.data[`uuid${player}`]
+
+            updateScreens()
+        });
+
+        $('#joingame').on('mousedown touchstart', function(e) {
+            if (!UUIDUpdated()) return;
+
+            console.log("Register user")
+            if (!OOCSI.isConnected()) connectOOCSI()
+            OOCSI.send("0e3be763-a287-4192-ae5e-52c3608f2a09", {register: player, uuid: playerUUID});
+        })
+
+        let visibilityChange;
+        if (typeof document.hidden !== "undefined") { // Opera 12.10 and Firefox 18 and later support
+            hidden = "hidden";
+            visibilityChange = "visibilitychange";
+        } else if (typeof document.msHidden !== "undefined") {
+            hidden = "msHidden";
+            visibilityChange = "msvisibilitychange";
+        } else if (typeof document.webkitHidden !== "undefined") {
+            hidden = "webkitHidden";
+            visibilityChange = "webkitvisibilitychange";
+        }
+
+        if (typeof document.addEventListener === "undefined" || hidden === undefined) {
+            console.log("This demo requires a browser, such as Google Chrome or Firefox, that supports the Page Visibility API.");
+        } else {
+        // Handle page visibility change
+            document.addEventListener(visibilityChange, function() {
+                if (!OOCSI.isConnected()) connectOOCSI()
+                clearInterval(intervalId);
+                intervalId = setInterval(getLiveUUID, 250);
+            }, false);
+        }
+        $(window).on('focus', function() {
+            if (!OOCSI.isConnected()) connectOOCSI()
+            clearInterval(intervalId);
+            intervalId = setInterval(getLiveUUID, 250);
+        });
+        window.addEventListener("focus", function(){
+            if (!OOCSI.isConnected()) connectOOCSI()
+            clearInterval(intervalId);
+            intervalId = setInterval(getLiveUUID, 250);
+            getLiveUUID();
+        });
+    }) 
+
+    function getLiveUUID(){
+        if (!OOCSI.isConnected()) connectOOCSI()
+        OOCSI.send("0e3be763-a287-4192-ae5e-52c3608f2a09", {request: 0});
+    }
+
+    function UUIDUpdated(){
+        if (Date.now() - lastUpdateTime > 5000) {
+            getLiveUUID()
+            return false;
+        } else {
+            return true;
+        }
+    }
+
+    function pressingDown(e) { 
+        console.log("OOCSI send: ", `beermug_pongP${(player + 1)}_down`, "1")
+        if (!OOCSI.isConnected()) connectOOCSI()
+        OOCSI.send("0e3be763-a287-4192-ae5e-52c3608f2a09", {player: player, button: 1, state: 1});
+    } 
+    function notPressingDown(e) {         
+        console.log("OOCSI send: ", `beermug_pongP${(player + 1)}_down`, 0)
+        if (!OOCSI.isConnected()) connectOOCSI()
+        OOCSI.send("0e3be763-a287-4192-ae5e-52c3608f2a09", {player: player, button: 1, state: 0});
+
+    }
+    function pressingUp(e) {         
+        console.log("OOCSI send: ", `beermug_pongP${(player + 1)}_up`, 1)
+        if (!OOCSI.isConnected()) connectOOCSI()
+        OOCSI.send("0e3be763-a287-4192-ae5e-52c3608f2a09", {player: player, button: 0, state: 1});
+    } 
+    function notPressingUp(e) {        
+        console.log("OOCSI send: ", `beermug_pongP${(player + 1)}_up`, 0)
+        if (!OOCSI.isConnected()) connectOOCSI()
+        OOCSI.send("0e3be763-a287-4192-ae5e-52c3608f2a09", {player: player, button: 0, state: 0});
+    }
+</script>
+
+</html>
